@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>爪尺 米 | SYSTEM_CORE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&family=Noto+Serif+SC:wght@700;900&family=Playfair+Display:wght@700;900&family=Montserrat:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { green: '#00FF41', red: '#FF003C', dark: '#000000' },
+                    fontFamily: { 
+                        serif: ['Playfair Display', 'serif'],
+                        sans: ['Montserrat', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'], 
+                        cjk: ['"Noto Serif SC"', 'serif'] 
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* --- CORE SYSTEM UI --- */
+        html { scroll-snap-type: y mandatory; scroll-padding-top: 100px; cursor: none; }
+        body { background-color: #000000; color: #00FF41; overflow-x: hidden; cursor: none; -webkit-font-smoothing: antialiased; }
+        
+        body::after {
+            content: " "; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            z-index: 999; background-size: 100% 4px; pointer-events: none; opacity: 0.1;
+        }
+
+        .bg-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background-image: linear-gradient(to right, rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        /* --- THE NEKO BOT (GEOMETRY FIXED) --- */
+        .bot-container {
+            position: relative; width: 140px; height: 175px; margin: 0 auto;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .is-floating { animation: floating 4s infinite alternate ease-in-out; }
+
+        .cat-head {
+            width: 120px; height: 100px;
+            background: #000; 
+            border: 3px solid #00FF41;
+            border-radius: 18px;
+            position: relative;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Ears hidden behind the head */
+        .ear {
+            position: absolute; top: -12px; width: 0; height: 0;
+            border-left: 12px solid transparent; border-right: 12px solid transparent;
+            border-bottom: 25px solid #00FF41;
+            z-index: -1;
+            transition: border-bottom-color 0.3s;
+        }
+        .ear.left { left: 8px; transform: rotate(-15deg); }
+        .ear.right { right: 8px; transform: rotate(15deg); }
+
+        .cat-face { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+
+        .eye {
+            width: 24px; height: 24px; background: #00FF41;
+            position: absolute; top: 32px; border-radius: 4px;
+            box-shadow: 0 0 10px #00FF41; transition: all 0.15s;
+            overflow: hidden; /* Clips pupil movement */
+        }
+        .eye.left { left: 22px; }
+        .eye.right { right: 22px; }
+        
+        /* Inner Pupil Tracking */
+        .pupil { 
+            width: 8px; height: 8px; background: #000; 
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            transition: transform 0.05s ease-out;
+            border-radius: 1px;
+        }
+
+        /* X_X Cross bars (Locked in state-angry) */
+        .cross {
+            position: absolute; width: 100%; height: 5px; background: #FF003C;
+            top: 50%; left: 0; display: none; box-shadow: 0 0 10px #FF003C;
+            z-index: 20;
+        }
+        .cross.one { transform: translateY(-50%) rotate(45deg); }
+        .cross.two { transform: translateY(-50%) rotate(-45deg); }
+
+        .nose { width: 6px; height: 4px; background: #00FF41; position: absolute; top: 58px; border-radius: 2px; }
+        .mouth { width: 14px; height: 6px; border-bottom: 3px solid #00FF41; border-radius: 50%; position: absolute; top: 64px; transition: all 0.2s; }
+
+        .sleep-bubble { position: absolute; top: -35px; right: -15px; font-size: 20px; opacity: 0; transition: 0.5s; font-weight: bold; pointer-events: none;}
+
+        /* --- STATE MODIFIERS --- */
+        
+        .bot-container:hover:not(.state-angry):not(.state-happy) .eye { height: 6px; top: 40px; }
+        .bot-container:hover:not(.state-angry):not(.state-happy) .mouth { width: 10px; border-radius: 0; top: 66px; }
+
+        .state-happy .eye { background: transparent; box-shadow: none; border-top: 3px solid #00FF41; border-right: 3px solid #00FF41; border-radius: 0; width: 14px; height: 14px; transform: rotate(-45deg); top: 35px; }
+        .state-happy .pupil { display: none; }
+        .state-happy .mouth { width: 18px; height: 10px; background: #00FF41; border-radius: 0 0 10px 10px; top: 62px; }
+
+        .state-angry { animation: none !important; }
+        .state-angry .cat-head { border-color: #FF003C; background: rgba(40, 0, 0, 0.4); box-shadow: 0 0 40px #FF003C; animation: vibrate 0.08s infinite; }
+        .state-angry .ear { border-bottom-color: #FF003C; }
+        .state-angry .nose, .state-angry .mouth { background: #FF003C; border-color: #FF003C; }
+        .state-angry .eye { background: transparent; box-shadow: none; width: 24px; height: 24px; top: 32px; overflow: visible; }
+        .state-angry .pupil { display: none; }
+        .state-angry .cross { display: block; }
+
+        .bot-sleep .eye { height: 2px; top: 45px; width: 22px; }
+        .bot-sleep .pupil { display: none; }
+        .bot-sleep .sleep-bubble { opacity: 1; animation: float-z 2s infinite linear; }
+        .bot-sleep .cat-head { opacity: 0.5; box-shadow: none; }
+
+        @keyframes floating { 0% { transform: translateY(0); } 100% { transform: translateY(-15px); } }
+        @keyframes vibrate { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -2px); } 100% { transform: translate(2px, -1px); } }
+        @keyframes float-z { 0% { transform: translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-20px); opacity: 0; } }
+
+        /* HERO TYPOGRAPHY: RESTORED LARGE SIZE */
+        .hero-text-size { font-size: 3.5rem; line-height: 1; font-weight: 900; } 
+        @media (min-width: 768px) { .hero-text-size { font-size: 6rem; } }
+
+        /* --- CURSOR --- */
+        #cursor-dot, #cursor-ring { position: fixed; pointer-events: none; z-index: 9999; border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.2s, height 0.2s; }
+        #cursor-dot { width: 4px; height: 4px; background-color: #00FF41; box-shadow: 0 0 10px #00FF41; }
+        #cursor-ring { width: 30px; height: 30px; border: 1px solid rgba(0, 255, 65, 0.3); }
+        .cursor-hover #cursor-dot { width: 0px; height: 0px; opacity: 0; }
+        .cursor-hover #cursor-ring { width: 60px; height: 60px; border: 1px dashed #00FF41; background: rgba(0, 255, 65, 0.05); animation: spin 4s linear infinite; }
+        @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        .glass-card { background: rgba(0, 20, 0, 0.4); backdrop-filter: blur(5px); border: 1px solid rgba(0, 255, 65, 0.1); transition: all 0.4s ease; }
+        .glass-card:hover { border-color: #00FF41; transform: scale(1.02); box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); }
+        .magnet-wrap { display: inline-block; transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+        
+        section { min-height: 100vh; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; position: relative; padding: 40px; }
+    </style>
+</head>
+<body class="font-mono">
+    <div id="cursor-dot"></div><div id="cursor-ring"></div><div class="bg-layer"></div>
+
+    <nav class="fixed w-full z-50 px-8 py-4 flex justify-between items-center bg-black/80 backdrop-blur-md border-b border-green/20">
+        <a href="#home" class="nav-item text-xl font-cjk font-bold tracking-tighter text-green glow-text uppercase hover:bg-green/10 transition-all">[ 爪尺 米 ]</a>
+        <div class="hidden md:flex space-x-10 text-[10px] tracking-widest uppercase font-bold">
+            <div class="magnet-wrap"><a href="#home" class="nav-item hover:bg-green hover:text-black px-2 transition-all">ROOT</a></div>
+            <div class="magnet-wrap"><a href="projects.html" class="nav-item hover:bg-green hover:text-black px-2 transition-all">LABS</a></div>
+            <div class="magnet-wrap"><a href="#about" class="nav-item hover:bg-green hover:text-black px-2 transition-all">INFO</a></div>
+            <div class="magnet-wrap"><a href="#connect" class="nav-item hover:bg-green hover:text-black px-2 transition-all">NODES</a></div>
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <section id="home">
+        <div class="flex flex-col items-center text-center">
+            
+            <!-- THE NEKO UNIT -->
+            <div class="bot-container is-floating mb-12 group" id="bot-unit">
+                <div class="sleep-bubble">Zzz...</div>
+                <div class="cat-head">
+                    <div class="ear left"></div><div class="ear right"></div>
+                    <div class="cat-face">
+                        <div class="eye left">
+                            <div class="pupil"></div>
+                            <div class="cross one"></div><div class="cross two"></div>
+                        </div>
+                        <div class="eye right">
+                            <div class="pupil"></div>
+                            <div class="cross one"></div><div class="cross two"></div>
+                        </div>
+                        <div class="nose"></div>
+                        <div class="mouth"></div>
+                    </div>
+                </div>
+                <p id="bot-status" class="text-[9px] mt-10 tracking-[0.5em] transition-colors duration-300 font-bold uppercase">Status: Neko_Idle</p>
+            </div>
+
+            <h1 class="hero-text-size font-cjk mb-8 glow-text scramble-text" data-value="爪尺 米 丂凵爪口冂">爪尺 米 丂凵爪口冂</h1>
+            <p class="max-w-xl mx-auto text-sm text-green/50 mb-12 lowercase leading-relaxed font-mono font-medium">// syncing system_core // <br> [target_acquired]</p>
+            <div class="magnet-wrap"><a href="projects.html" class="nav-item border-2 border-green text-green px-12 py-3 text-[10px] font-bold hover:bg-green hover:text-black transition-all">PROJECTS</a></div>
+        </div>
+    </section>
+
+    <!-- ABOUT SECTION -->
+    <section id="about">
+        <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-20">
+            <div class="w-full md:w-1/2 aspect-[4/5] bg-black border border-green/20 flex items-center justify-center relative overflow-hidden group">
+                <div class="absolute inset-0 opacity-10 group-hover:opacity-30 transition-opacity bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <span class="text-green font-cjk text-9xl opacity-10 transition-all">米</span>
+                <div class="absolute top-4 left-4 text-[9px] text-green/40 font-mono">USER_ID: SUMON_MD</div>
+            </div>
+            <div class="w-full md:w-1/2 text-left">
+                <h2 class="text-4xl font-bold mb-8 glow-text scramble-text font-serif" data-value="SUBJECT_INTEL">SUBJECT_INTEL</h2>
+                <p class="text-green/70 leading-relaxed mb-10 text-sm border-l-2 border-green/30 pl-6 font-mono">Multidisciplinary architect of digital spaces. Specialist in cinematic impact and low-latency interaction. Cyber-aesthetic enthusiast. Code-driven visionary.</p>
+                <div class="grid grid-cols-2 gap-4 text-[10px] font-bold font-mono">
+                    <p class="text-green">> 01_ILLUSTRATION</p><p class="text-green">> 02_BRANDING</p>
+                    <p class="text-green">> 03_MOTION_UX</p><p class="text-green">> 04_CYBER_SEC</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NODES SECTION -->
+    <section id="connect" class="px-8">
+        <div class="max-w-6xl w-full mx-auto">
+            <div class="flex justify-between items-end mb-16 border-b border-green/20 pb-6">
+                <h2 class="text-3xl font-bold glow-text scramble-text" data-value="NETWORK_NODES">NETWORK_NODES</h2>
+                <span class="text-[10px] text-green/40 font-mono">ENCRYPTED_LINKS</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-20">
+                <a href="https://dribbble.com/mdmisumon" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_01</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">Dribbble.sh</h3>
+                </a>
+                <a href="https://www.linkedin.com/in/mdmisumon/" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_02</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">LinkedIn.exe</h3>
+                </a>
+                <a href="https://www.instagram.com/mdmisumon" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_03</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">Insta_Feed.pkg</h3>
+                </a>
+                <a href="https://x.com/mdmisumon9" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_04</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">Twitter.bat</h3>
+                </a>
+                <a href="https://www.facebook.com/mdmisumon" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_05</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">Facebook.log</h3>
+                </a>
+                <a href="https://www.fiverr.com/users/mdmisumon" target="_blank" class="nav-item glass-card p-8 h-48 flex flex-col justify-between group">
+                    <span class="text-[9px] opacity-40 uppercase">Node_06</span>
+                    <h3 class="text-2xl font-bold group-hover:text-white transition-colors">Fiverr_Gig.bin</h3>
+                </a>
+            </div>
+            <footer class="text-center text-[8px] font-mono text-green/30 pb-10">[SYSTEM_END] &copy; 2026 MD_SUMON</footer>
+        </div>
+    </section>
+
+    <script>
+        const dot = document.getElementById('cursor-dot'), ring = document.getElementById('cursor-ring');
+        const bot = document.getElementById('bot-unit'), status = document.getElementById('bot-status');
+        const pupils = document.querySelectorAll('.pupil'), magnets = document.querySelectorAll('.magnet-wrap');
+        
+        let idleTimer, isHappy = false, isAngry = false, lastClick = 0, clickTimer;
+
+        // 1. Mouse & Eye Logic
+        window.addEventListener('mousemove', (e) => {
+            clearTimeout(idleTimer);
+            if(bot.classList.contains('bot-sleep')) {
+                bot.classList.remove('bot-sleep');
+                updateUI();
+            }
+            idleTimer = setTimeout(() => {
+                if(!isAngry && !isHappy) {
+                    bot.classList.add('bot-sleep');
+                    status.innerText = "STATUS: SLEEP_MODE";
+                }
+            }, 5000);
+
+            // Cursor
+            dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px';
+            setTimeout(() => { ring.style.left = e.clientX + 'px'; ring.style.top = e.clientY + 'px'; }, 30);
+
+            // Pupil Tracking
+            if (!isAngry && !isHappy && !bot.classList.contains('bot-sleep')) {
+                pupils.forEach((p) => {
+                    const rect = p.parentElement.getBoundingClientRect();
+                    const angle = Math.atan2(e.clientY - (rect.top + rect.height/2), e.clientX - (rect.left + rect.width/2));
+                    const dist = Math.min(6, Math.hypot(e.clientX - (rect.left + rect.width/2), e.clientY - (rect.top + rect.height/2)) / 12);
+                    p.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+                });
+            }
+
+            // Magnets
+            magnets.forEach(m => {
+                const r = m.getBoundingClientRect();
+                const d = Math.hypot(e.clientX - (r.left + r.width/2), e.clientY - (r.top + r.height/2));
+                if(d < 100) m.style.transform = `translate(${(e.clientX - (r.left+r.width/2))*0.25}px, ${(e.clientY - (r.top+r.height/2))*0.25}px)`;
+                else m.style.transform = `translate(0,0)`;
+            });
+        });
+
+        // 2. Click vs Double Click Matrix
+        bot.addEventListener('click', (e) => {
+            const now = Date.now();
+            if (now - lastClick < 300) { 
+                clearTimeout(clickTimer);
+                isAngry = !isAngry; isHappy = false;
+                updateUI();
+            } else {
+                clickTimer = setTimeout(() => {
+                    isHappy = !isHappy; isAngry = false;
+                    updateUI();
+                }, 300);
+            }
+            lastClick = now;
+        });
+
+        function updateUI() {
+            bot.classList.remove('state-happy', 'state-angry', 'is-floating');
+            status.style.color = '#00FF41';
+            
+            if (isAngry) {
+                bot.classList.add('state-angry');
+                status.innerText = "STATUS: RAGE_MODE_LOCKED";
+                status.style.color = "#FF003C";
+            } else if (isHappy) {
+                bot.classList.add('state-happy', 'is-floating');
+                status.innerText = "STATUS: SYSTEM_HAPPY";
+            } else {
+                bot.classList.add('is-floating');
+                status.innerText = "STATUS: NEKO_IDLE";
+            }
+        }
+
+        // 3. Scramble logic
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting) {
+                    let i = 0; const target = entry.target, orig = target.dataset.value;
+                    const interval = setInterval(() => {
+                        target.innerText = orig.split("").map((c, idx) => idx < i ? orig[idx] : "爪尺米丂凵爪口冂"[Math.floor(Math.random()*7)]).join("");
+                        if(i >= orig.length) clearInterval(interval); i += 1/5;
+                    }, 30);
+                }
+            });
+        }, { threshold: 0.5 });
+        document.querySelectorAll('.scramble-text').forEach(t => observer.observe(t));
+
+        document.querySelectorAll('a, button, .nav-item').forEach(el => {
+            el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hover'));
+            el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hover'));
+        });
+    </script>
+</body>
+</html>

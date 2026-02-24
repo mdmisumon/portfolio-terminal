@@ -773,6 +773,7 @@
         const bulkStatus = document.getElementById('bulkStatus');
 
         let currentImageBlob = null;
+        let currentImageUrl = null; // Track the displayed image URL
         let imageCounter = 0;
         let workingProxyIndex = 0; // Track which proxy works
 
@@ -797,6 +798,8 @@
 
             const ts = Date.now() + '_' + Math.random();
             const url = SOURCE_URL + '?t=' + ts;
+            currentImageUrl = url; // Remember which URL we're displaying
+            currentImageBlob = null; // Reset cached blob
 
             faceImage.onload = () => {
                 spinnerOverlay.classList.remove('active');
@@ -810,8 +813,8 @@
                 imageIdLabel.textContent = `SUBJECT_ID: 0x${id} // FRAME_${String(imageCounter).padStart(4, '0')}`;
                 imageIdLabel.classList.remove('active');
 
-                // Cache the displayed image as blob via canvas (no proxy needed)
-                cacheImageFromCanvas();
+                // Pre-fetch the SAME image via proxy for download
+                fetchImageBlob(currentImageUrl);
             };
 
             faceImage.onerror = () => {
@@ -869,11 +872,10 @@
             throw new Error('All proxies failed');
         }
 
-        // Fetch image as blob via proxy (for pre-caching)
-        async function fetchImageBlob() {
+        // Fetch the same image via proxy for download caching
+        async function fetchImageBlob(imageUrl) {
             try {
-                const targetUrl = SOURCE_URL + '?t=' + Date.now() + '_' + Math.random();
-                currentImageBlob = await fetchWithProxyFallback(targetUrl);
+                currentImageBlob = await fetchWithProxyFallback(imageUrl);
             } catch (e) {
                 console.warn('Proxy pre-cache failed:', e.message);
             }
@@ -891,22 +893,26 @@
             loadFace();
         }
 
-        // ---- DOWNLOAD SINGLE ----
+        // ---- DOWNLOAD SINGLE (downloads the CURRENTLY DISPLAYED image) ----
         async function downloadSingle() {
             const btn = document.getElementById('btnDownload');
             btn.disabled = true;
 
+            const filename = `phantom_face_${generateId()}.jpg`;
+
+            // If we already pre-cached this image, use it directly
+            if (currentImageBlob) {
+                triggerDownload(currentImageBlob, filename);
+                btn.disabled = false;
+                return;
+            }
+
+            // Otherwise, fetch the SAME displayed image via proxy
             try {
-                // fetch a fresh copy via proxy
-                const blob = await fetchFreshBlob();
-                triggerDownload(blob, `phantom_face_${generateId()}.jpg`);
+                const blob = await fetchWithProxyFallback(currentImageUrl || faceImage.src);
+                triggerDownload(blob, filename);
             } catch (e) {
-                // fallback: try using cached blob
-                if (currentImageBlob) {
-                    triggerDownload(currentImageBlob, `phantom_face_${generateId()}.jpg`);
-                } else {
-                    alert('Download failed. Please try refreshing first.');
-                }
+                alert('Download failed. Please try refreshing first.');
             }
 
             btn.disabled = false;

@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>爪尺 米 | PHANTOM_FACE_ENGINE</title>
+    <meta name="description"
+        content="AI-driven face synthesis interface. Generate, preview, and download AI-generated human faces.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&family=Noto+Serif+SC:wght@700;900&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { green: '#00FF41', dark: '#000000' },
+                    fontFamily: { mono: ['"JetBrains Mono"', 'monospace'], cjk: ['"Noto Serif SC"', 'serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* --- CORE SYSTEM UI --- */
+        html {
+            cursor: none;
+        }
+
+        body {
+            background-color: #000000;
+            color: #00FF41;
+            overflow-x: hidden;
+            cursor: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* CRT Scanline Overlay */
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            z-index: 999;
+            background-size: 100% 4px;
+            pointer-events: none;
+            opacity: 0.1;
+        }
+
+        .bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-color: #000000;
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+        }
+
+        /* Custom Cursor */
+        #cursor-dot,
+        #cursor-ring {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s;
+        }
+
+        #cursor-dot {
+            width: 4px;
+            height: 4px;
+            background-color: #00FF41;
+            box-shadow: 0 0 10px #00FF41;
+        }
+
+        #cursor-ring {
+            width: 30px;
+            height: 30px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+        }
+
+        .cursor-hover #cursor-dot {
+            width: 0;
+            height: 0;
+            opacity: 0;
+        }
+
+        .cursor-hover #cursor-ring {
+            width: 60px;
+            height: 60px;
+            border: 1px dashed #00FF41;
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .magnet-wrap {
+            display: inline-block;
+            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        /* ---- ENHANCED ANIMATIONS & EFFECTS ---- */
+        @keyframes crtFlicker {
+            0% {
+                opacity: 0.1;
+            }
+
+            5% {
+                opacity: 0.15;
+            }
+
+            10% {
+                opacity: 0.1;
+            }
+
+            15% {
+                opacity: 0.2;
+            }
+
+            100% {
+                opacity: 0.1;
+            }
+        }
+
+        .crt-flicker::after {
+            animation: crtFlicker 0.15s infinite;
+        }
+
+        @keyframes textGlitch {
+            0% {
+                text-shadow: 2px 0 #00FF41, -2px 0 #ff003c;
+                transform: translate(0);
+            }
+
+            20% {
+                text-shadow: -2px 0 #00FF41, 2px 0 #ff003c;
+                transform: translate(-2px, 1px);
+            }
+
+            40% {
+                text-shadow: 2px 0 #00FF41, -2px 0 #ff003c;
+                transform: translate(2px, -1px);
+            }
+
+            60% {
+                text-shadow: -2px 0 #00FF41, 2px 0 #ff003c;
+                transform: translate(-1px, 2px);
+            }
+
+            80% {
+                text-shadow: 2px 0 #00FF41, -2px 0 #ff003c;
+                transform: translate(1px, -2px);
+            }
+
+            100% {
+                text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+                transform: translate(0);
+            }
+        }
+
+        .glitch-text-hover:hover {
+            animation: textGlitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
+            color: #fff;
+        }
+
+        /* Scan line animation on buttons */
+        .btn-scanline {
+            position: absolute;
+            left: -100%;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.4), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .action-btn:hover .btn-scanline {
+            left: 100%;
+        }
+
+        /* Face Display Frame */
+        .face-frame {
+            position: relative;
+            width: 100%;
+            max-width: 50vh;
+            /* Scaled to viewport height */
+            aspect-ratio: 1;
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            background: rgba(0, 20, 0, 0.4);
+            overflow: hidden;
+            transition: border-color 0.4s ease, box-shadow 0.4s ease, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin: 0 auto;
+        }
+
+        .face-frame:hover {
+            border-color: #00FF41;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.15), inset 0 0 30px rgba(0, 255, 65, 0.05);
+            transform: scale(1.02);
+        }
+
+        .face-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: opacity 0.4s ease, filter 0.4s;
+            filter: contrast(1.1) saturate(0.9);
+        }
+
+        .face-frame img.loading {
+            opacity: 0.1;
+            filter: blur(5px) grayscale(100%);
+        }
+
+        .face-frame:hover img {
+            filter: contrast(1.2) saturate(1.1);
+        }
+
+        /* Corner Decorations */
+        .face-frame::before,
+        .face-frame::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: #00FF41;
+            border-style: solid;
+            z-index: 2;
+            opacity: 0.5;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .face-frame::before {
+            top: 8px;
+            left: 8px;
+            border-width: 1px 0 0 1px;
+        }
+
+        .face-frame::after {
+            top: 8px;
+            right: 8px;
+            border-width: 1px 1px 0 0;
+        }
+
+        .corner-bl,
+        .corner-br {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: #00FF41;
+            border-style: solid;
+            z-index: 2;
+            opacity: 0.5;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .corner-bl {
+            bottom: 8px;
+            left: 8px;
+            border-width: 0 0 1px 1px;
+        }
+
+        .corner-br {
+            bottom: 8px;
+            right: 8px;
+            border-width: 0 1px 1px 0;
+        }
+
+        .face-frame:hover::before,
+        .face-frame:hover::after,
+        .face-frame:hover .corner-bl,
+        .face-frame:hover .corner-br {
+            width: 30px;
+            height: 30px;
+            opacity: 1;
+        }
+
+        /* Spinner overlay */
+        .spinner-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 3;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(2px);
+        }
+
+        .spinner-overlay.active {
+            opacity: 1;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(0, 255, 65, 0.1);
+            border-top-color: #00FF41;
+            border-radius: 50%;
+            animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            position: relative;
+            overflow: hidden;
+            background: rgba(0, 20, 0, 0.6);
+            border: 1px solid rgba(0, 255, 65, 0.25);
+            color: #00FF41;
+            padding: 14px 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            cursor: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .action-btn:hover {
+            background: rgba(0, 255, 65, 0.15);
+            border-color: #00FF41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2), inset 0 0 10px rgba(0, 255, 65, 0.1);
+            transform: translateY(-2px);
+            text-shadow: 0 0 8px #00FF41;
+        }
+
+        .action-btn:active {
+            transform: translateY(1px);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform 0.3s;
+        }
+
+        .action-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        /* Count Input */
+        .count-input {
+            background: rgba(0, 30, 0, 0.8);
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            color: #00FF41;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            width: 60px;
+            padding: 12px 0;
+            text-align: center;
+            cursor: none;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .count-input:focus,
+        .count-input:hover {
+            border-color: #00FF41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+            background: rgba(0, 40, 0, 0.9);
+        }
+
+        .count-input::-webkit-outer-spin-button,
+        .count-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .count-input {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        /* Progress bar */
+        .progress-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(0, 255, 65, 0.1);
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: relative;
+        }
+
+        .progress-container.active {
+            opacity: 1;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #00FF41;
+            box-shadow: 0 0 15px #00FF41;
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+            animation: progressGlow 1.5s infinite linear;
+        }
+
+        @keyframes progressGlow {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        /* Status text */
+        .status-text {
+            font-size: 10px;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: rgba(0, 255, 65, 0.4);
+            min-height: 16px;
+            transition: color 0.3s ease;
+            text-align: center;
+            width: 100%;
+            display: block;
+        }
+
+        .status-text.active {
+            color: #00FF41;
+            text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+            animation: pulseText 2s infinite;
+        }
+
+        @keyframes pulseText {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        /* Glitch on refresh */
+        @keyframes glitch {
+            0% {
+                transform: translate(0);
+                filter: none;
+                clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+            }
+
+            20% {
+                transform: translate(-3px, 2px);
+                filter: hue-rotate(90deg) drop-shadow(0 0 10px #00FF41);
+                clip-path: polygon(0 15%, 100% 15%, 100% 30%, 0 30%);
+            }
+
+            40% {
+                transform: translate(3px, -2px);
+                filter: hue-rotate(180deg) drop-shadow(0 0 10px #ff003c);
+                clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%);
+            }
+
+            60% {
+                transform: translate(-2px, 3px);
+                filter: hue-rotate(270deg) drop-shadow(0 0 10px #00e5ff);
+                clip-path: polygon(0 40%, 100% 40%, 100% 50%, 0 50%);
+            }
+
+            80% {
+                transform: translate(2px, -3px);
+                filter: hue-rotate(360deg) drop-shadow(0 0 10px #ffea00);
+                clip-path: polygon(0 85%, 100% 85%, 100% 95%, 0 95%);
+            }
+
+            100% {
+                transform: translate(0);
+                filter: none;
+                clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+            }
+        }
+
+        .glitch-effect {
+            animation: glitch 0.4s cubic-bezier(.25, .46, .45, .94) both;
+        }
+
+        /* Scan line animation on image */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(to bottom, transparent, rgba(0, 255, 65, 0.4), transparent);
+            z-index: 2;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        }
+
+        .scan-line.active {
+            opacity: 1;
+            animation: scanDown 0.8s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+        }
+
+        @keyframes scanDown {
+            0% {
+                top: 0;
+                opacity: 1;
+            }
+
+            100% {
+                top: 100%;
+                opacity: 0;
+            }
+        }
+
+        /* Layout overrides to fit screen */
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            width: 100%;
+            height: calc(100vh - 12rem);
+            /* account for header/footer */
+            max-height: 800px;
+            align-items: center;
+        }
+
+        @media (min-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr 1fr;
+                gap: 4rem;
+            }
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            justify-content: center;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body class="font-mono crt-flicker overflow-hidden h-screen flex flex-col">
+    <div id="cursor-dot"></div>
+    <div id="cursor-ring"></div>
+    <div class="bg-layer"></div>
+
+    <!-- UNIVERSAL NAVIGATION BAR -->
+    <nav
+        class="w-full z-50 px-8 py-4 flex justify-between items-center bg-black/80 backdrop-blur-md border-b border-green/20 shrink-0">
+        <a href="index.html#home"
+            class="nav-item text-xl font-cjk font-bold tracking-tighter text-green glow-text uppercase hover:bg-green/10 transition-all">[
+            爪尺 米 ]</a>
+        <div class="hidden md:flex space-x-10 text-[10px] tracking-widest uppercase font-bold">
+            <div class="magnet-wrap"><a href="index.html#home"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">ROOT</a></div>
+            <div class="magnet-wrap"><a href="projects.html"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">LABS</a></div>
+            <div class="magnet-wrap"><a href="index.html#about"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">INFO</a></div>
+            <div class="magnet-wrap"><a href="index.html#connect"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">NODES</a></div>
+        </div>
+    </nav>
+
+    <main class="flex-grow px-8 max-w-6xl mx-auto w-full flex flex-col justify-center relative">
+        <!-- Header absolutely positioned or just tight spacing -->
+        <div class="absolute top-4 left-8 border-l-2 border-green pl-6 hidden lg:block z-10">
+            <h1 class="text-3xl font-bold mb-2 glow-text uppercase glitch-text-hover cursor-default">Phantom_Face_Engine
+            </h1>
+            <p class="text-green/50 text-[10px] tracking-widest">> SOURCE: thispersondoesnotexist.com</p>
+        </div>
+
+        <div class="app-container">
+            <!-- Left: Face Display -->
+            <div class="flex flex-col items-center justify-center w-full relative z-0">
+                <div class="lg:hidden w-full text-center border-b border-green/20 pb-4 mb-4">
+                    <h1 class="text-2xl font-bold glow-text uppercase glitch-text-hover">Phantom_Face_Engine</h1>
+                </div>
+
+                <div class="face-frame" id="faceFrame">
+                    <img id="faceImage" src="" alt="AI Generated Face" />
+                    <div class="corner-bl"></div>
+                    <div class="corner-br"></div>
+                    <div class="spinner-overlay" id="spinnerOverlay">
+                        <div class="spinner"></div>
+                    </div>
+                    <div class="scan-line" id="scanLine"></div>
+                </div>
+
+                <!-- Image ID Label -->
+                <div class="mt-6 w-full text-center">
+                    <span class="status-text font-bold" id="imageId">SUBJECT_ID: ———</span>
+                </div>
+            </div>
+
+            <!-- Right: Controls -->
+            <div class="controls-panel">
+                <div
+                    class="border border-green/20 bg-black/40 p-6 relative group hover:border-green/50 transition-colors">
+                    <div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-green"></div>
+                    <div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-green"></div>
+
+                    <h2 class="text-[10px] tracking-[0.4em] uppercase text-green/60 mb-6 flex items-center gap-2">
+                        <span class="w-2 h-2 inline-block bg-green animate-pulse"></span>
+                        [ LIVE_CONTROLS ]
+                    </h2>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Refresh -->
+                        <button class="action-btn nav-item" id="btnRefresh" onclick="refreshFace()">
+                            <div class="btn-scanline"></div>
+                            <svg viewBox="0 0 24 24">
+                                <path d="M23 4v6h-6" />
+                                <path d="M1 20v-6h6" />
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                            </svg>
+                            Refresh
+                        </button>
+
+                        <!-- Download Single -->
+                        <button class="action-btn nav-item" id="btnDownload" onclick="downloadSingle()">
+                            <div class="btn-scanline"></div>
+                            <svg viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Save .JPG
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    class="border border-green/20 bg-black/40 p-6 relative group hover:border-green/50 transition-colors mt-2">
+                    <div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-green"></div>
+                    <div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-green"></div>
+
+                    <h2 class="text-[10px] tracking-[0.4em] uppercase text-green/60 mb-6 flex items-center gap-2">
+                        <span class="w-2 h-2 inline-block bg-green animate-pulse" style="animation-delay: 0.5s"></span>
+                        [ BATCH_EXPORT_MODULE ]
+                    </h2>
+
+                    <div class="flex items-center gap-4 mb-4">
+                        <label
+                            class="text-[11px] tracking-widest uppercase text-green/80 flex-grow font-bold">Extraction
+                            Count (1-50):</label>
+                        <input type="number" class="count-input nav-item" id="bulkCount" value="10" min="1" max="50" />
+                    </div>
+
+                    <button class="action-btn nav-item w-full" id="btnBulkDownload" onclick="downloadBulk()"
+                        style="background: rgba(0, 40, 0, 0.6); border-color: rgba(0, 255, 65, 0.5);">
+                        <div class="btn-scanline"></div>
+                        <svg viewBox="0 0 24 24">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        Initiate Batch Download (.ZIP)
+                    </button>
+
+                    <!-- Progress -->
+                    <div class="mt-5 relative">
+                        <div class="progress-container" id="progressContainer">
+                            <div class="progress-bar" id="progressBar"></div>
+                        </div>
+                        <div class="mt-2 h-4">
+                            <span class="status-text" id="bulkStatus"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer
+        class="text-center py-4 text-[9px] font-mono text-green/20 uppercase tracking-[1em] shrink-0 border-t border-green/10">
+        [SYSTEM_RECORDS_END] &copy; 2026 MD_SUMON
+    </footer>
+
+    <script>
+        // ============================================================
+        // CURSOR & NAV (shared logic)
+        // ============================================================
+        const dot = document.getElementById('cursor-dot');
+        const ring = document.getElementById('cursor-ring');
+        const items = document.querySelectorAll('.nav-item');
+        const magnets = document.querySelectorAll('.magnet-wrap');
+
+        window.addEventListener('mousemove', (e) => {
+            dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px';
+            setTimeout(() => { ring.style.left = e.clientX + 'px'; ring.style.top = e.clientY + 'px'; }, 30);
+            magnets.forEach(m => {
+                const rect = m.getBoundingClientRect();
+                const mX = rect.left + rect.width / 2;
+                const mY = rect.top + rect.height / 2;
+                const dist = Math.hypot(e.clientX - mX, e.clientY - mY);
+                if (dist < 100) { m.style.transform = `translate(${(e.clientX - mX) * 0.25}px, ${(e.clientY - mY) * 0.25}px)`; }
+                else { m.style.transform = `translate(0, 0)`; }
+            });
+        });
+        items.forEach(i => {
+            i.addEventListener('mouseenter', () => document.body.classList.add('cursor-hover'));
+            i.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hover'));
+        });
+
+        // ============================================================
+        // FACE GENERATOR ENGINE
+        // ============================================================
+        const PROXY_URL = 'https://corsproxy.io/?url=';
+        const SOURCE_URL = 'https://thispersondoesnotexist.com/';
+
+        const faceImage = document.getElementById('faceImage');
+        const spinnerOverlay = document.getElementById('spinnerOverlay');
+        const scanLine = document.getElementById('scanLine');
+        const faceFrame = document.getElementById('faceFrame');
+        const imageIdLabel = document.getElementById('imageId');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const bulkStatus = document.getElementById('bulkStatus');
+
+        let currentImageBlob = null;
+        let imageCounter = 0;
+
+        // Generate a pseudo-random hex ID
+        function generateId() {
+            return [...Array(8)].map(() => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
+        }
+
+        // Trigger scan-line animation
+        function triggerScan() {
+            scanLine.classList.remove('active');
+            void scanLine.offsetWidth; // force reflow
+            scanLine.classList.add('active');
+        }
+
+        // Load a face image (display only — uses <img> with cache-busting)
+        function loadFace() {
+            spinnerOverlay.classList.add('active');
+            faceImage.classList.add('loading');
+            imageIdLabel.textContent = 'SUBJECT_ID: SCANNING...';
+            imageIdLabel.classList.add('active');
+
+            const ts = Date.now() + '_' + Math.random();
+            const url = SOURCE_URL + '?t=' + ts;
+
+            faceImage.onload = () => {
+                spinnerOverlay.classList.remove('active');
+                faceImage.classList.remove('loading');
+                triggerScan();
+                faceFrame.classList.add('glitch-effect');
+                setTimeout(() => faceFrame.classList.remove('glitch-effect'), 300);
+
+                imageCounter++;
+                const id = generateId();
+                imageIdLabel.textContent = `SUBJECT_ID: 0x${id} // FRAME_${String(imageCounter).padStart(4, '0')}`;
+                imageIdLabel.classList.remove('active');
+
+                // Pre-fetch via proxy for download capability
+                fetchImageBlob(url);
+            };
+
+            faceImage.onerror = () => {
+                spinnerOverlay.classList.remove('active');
+                faceImage.classList.remove('loading');
+                imageIdLabel.textContent = 'SUBJECT_ID: ERROR — RETRY';
+                imageIdLabel.classList.remove('active');
+            };
+
+            faceImage.src = url;
+        }
+
+        // Fetch image as blob via CORS proxy (for downloads)
+        async function fetchImageBlob(directUrl) {
+            try {
+                const proxyUrl = PROXY_URL + encodeURIComponent(SOURCE_URL + '?t=' + Date.now() + '_' + Math.random());
+                const resp = await fetch(proxyUrl);
+                if (resp.ok) {
+                    currentImageBlob = await resp.blob();
+                }
+            } catch (e) {
+                console.warn('Proxy fetch failed (download may not work):', e);
+            }
+        }
+
+        // Fetch a single fresh image blob via proxy
+        async function fetchFreshBlob() {
+            const ts = Date.now() + '_' + Math.random();
+            const proxyUrl = PROXY_URL + encodeURIComponent(SOURCE_URL + '?t=' + ts);
+            const resp = await fetch(proxyUrl);
+            if (!resp.ok) throw new Error('Fetch failed: ' + resp.status);
+            return await resp.blob();
+        }
+
+        // ---- REFRESH ----
+        function refreshFace() {
+            loadFace();
+        }
+
+        // ---- DOWNLOAD SINGLE ----
+        async function downloadSingle() {
+            const btn = document.getElementById('btnDownload');
+            btn.disabled = true;
+
+            try {
+                // fetch a fresh copy via proxy
+                const blob = await fetchFreshBlob();
+                triggerDownload(blob, `phantom_face_${generateId()}.jpg`);
+            } catch (e) {
+                // fallback: try using cached blob
+                if (currentImageBlob) {
+                    triggerDownload(currentImageBlob, `phantom_face_${generateId()}.jpg`);
+                } else {
+                    alert('Download failed. Please try refreshing first.');
+                }
+            }
+
+            btn.disabled = false;
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ---- BULK DOWNLOAD AS ZIP ----
+        async function downloadBulk() {
+            const countInput = document.getElementById('bulkCount');
+            let count = parseInt(countInput.value) || 5;
+            count = Math.max(1, Math.min(50, count));
+            countInput.value = count;
+
+            const btnBulk = document.getElementById('btnBulkDownload');
+            const btnRefresh = document.getElementById('btnRefresh');
+            const btnDownload = document.getElementById('btnDownload');
+
+            btnBulk.disabled = true;
+            btnRefresh.disabled = true;
+            btnDownload.disabled = true;
+
+            progressContainer.classList.add('active');
+            progressBar.style.width = '0%';
+            bulkStatus.textContent = `INITIALIZING BATCH EXPORT... 0/${count}`;
+            bulkStatus.classList.add('active');
+
+            const zip = new JSZip();
+            const folder = zip.folder('phantom_faces');
+            let completed = 0;
+            let failed = 0;
+
+            // Fetch images sequentially with delay to avoid duplicates
+            const seenSizes = new Set();
+            const DELAY_MS = 1200; // delay between fetches to ensure unique images
+
+            for (let i = 0; i < count; i++) {
+                let retries = 0;
+                const maxRetries = 3;
+                let success = false;
+
+                while (retries <= maxRetries && !success) {
+                    try {
+                        const blob = await fetchFreshBlob();
+                        // Duplicate detection: check blob size (different faces have different file sizes)
+                        if (seenSizes.has(blob.size) && retries < maxRetries) {
+                            retries++;
+                            await new Promise(r => setTimeout(r, 1500)); // longer wait on duplicate
+                            continue;
+                        }
+                        seenSizes.add(blob.size);
+                        const id = generateId();
+                        folder.file(`face_${String(i + 1).padStart(3, '0')}_${id}.jpg`, blob);
+                        completed++;
+                        success = true;
+                    } catch {
+                        if (retries < maxRetries) {
+                            retries++;
+                            await new Promise(r => setTimeout(r, 1000));
+                            continue;
+                        }
+                        failed++;
+                        completed++;
+                        success = true; // break out of retry loop
+                    }
+                }
+
+                const pct = Math.round((completed / count) * 100);
+                progressBar.style.width = pct + '%';
+                bulkStatus.textContent = `FETCHING SUBJECTS... ${completed}/${count}${failed ? ` [${failed} FAILED]` : ''}`;
+
+                // Wait between fetches to ensure the server generates a new face
+                if (i < count - 1) await new Promise(r => setTimeout(r, DELAY_MS));
+            }
+
+            bulkStatus.textContent = 'COMPRESSING ARCHIVE...';
+
+            try {
+                const content = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+                    progressBar.style.width = Math.round(metadata.percent) + '%';
+                });
+                triggerDownload(content, `phantom_faces_${count}x_${generateId()}.zip`);
+                bulkStatus.textContent = `EXPORT COMPLETE — ${count - failed} SUBJECTS ARCHIVED`;
+            } catch (e) {
+                bulkStatus.textContent = 'EXPORT FAILED — ARCHIVE ERROR';
+            }
+
+            setTimeout(() => {
+                progressContainer.classList.remove('active');
+                bulkStatus.classList.remove('active');
+                bulkStatus.textContent = '';
+            }, 4000);
+
+            btnBulk.disabled = false;
+            btnRefresh.disabled = false;
+            btnDownload.disabled = false;
+        }
+
+        // ---- INIT ----
+        loadFace();
+    </script>
+</body>
+
+</html>

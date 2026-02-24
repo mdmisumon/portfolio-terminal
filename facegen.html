@@ -755,7 +755,12 @@
         // ============================================================
         // FACE GENERATOR ENGINE
         // ============================================================
-        const PROXY_URL = 'https://corsproxy.io/?url=';
+        // Multiple CORS proxies for fallback resilience
+        const PROXY_LIST = [
+            (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+            (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
+            (url) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+        ];
         const SOURCE_URL = 'https://thispersondoesnotexist.com/';
 
         const faceImage = document.getElementById('faceImage');
@@ -769,6 +774,7 @@
 
         let currentImageBlob = null;
         let imageCounter = 0;
+        let workingProxyIndex = 0; // Track which proxy works
 
         // Generate a pseudo-random hex ID
         function generateId() {
@@ -804,8 +810,8 @@
                 imageIdLabel.textContent = `SUBJECT_ID: 0x${id} // FRAME_${String(imageCounter).padStart(4, '0')}`;
                 imageIdLabel.classList.remove('active');
 
-                // Pre-fetch via proxy for download capability
-                fetchImageBlob(url);
+                // Cache the displayed image as blob via canvas (no proxy needed)
+                cacheImageFromCanvas();
             };
 
             faceImage.onerror = () => {
@@ -818,26 +824,66 @@
             faceImage.src = url;
         }
 
-        // Fetch image as blob via CORS proxy (for downloads)
-        async function fetchImageBlob(directUrl) {
+        // Cache the currently displayed image as a blob using canvas (CORS-free fallback)
+        function cacheImageFromCanvas() {
             try {
-                const proxyUrl = PROXY_URL + encodeURIComponent(SOURCE_URL + '?t=' + Date.now() + '_' + Math.random());
-                const resp = await fetch(proxyUrl);
-                if (resp.ok) {
-                    currentImageBlob = await resp.blob();
-                }
+                const canvas = document.createElement('canvas');
+                canvas.width = faceImage.naturalWidth || 1024;
+                canvas.height = faceImage.naturalHeight || 1024;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(faceImage, 0, 0);
+                canvas.toBlob((blob) => {
+                    if (blob) currentImageBlob = blob;
+                }, 'image/jpeg', 0.95);
             } catch (e) {
-                console.warn('Proxy fetch failed (download may not work):', e);
+                // Canvas tainted by cross-origin image — expected, fallback won't work
+                console.warn('Canvas cache failed (CORS taint):', e.message);
+            }
+        }
+
+        // Fetch image as blob via CORS proxy with fallback chain
+        async function fetchWithProxyFallback(targetUrl) {
+            // Start with the last proxy that worked
+            const orderedIndices = [];
+            for (let i = 0; i < PROXY_LIST.length; i++) {
+                orderedIndices.push((workingProxyIndex + i) % PROXY_LIST.length);
+            }
+
+            for (const idx of orderedIndices) {
+                try {
+                    const proxyUrl = PROXY_LIST[idx](targetUrl);
+                    const resp = await fetch(proxyUrl);
+                    if (resp.ok) {
+                        const blob = await resp.blob();
+                        // Verify it's actually an image (not an error page)
+                        if (blob.size > 10000 && blob.type.startsWith('image')) {
+                            workingProxyIndex = idx; // Remember this proxy works
+                            return blob;
+                        }
+                    }
+                } catch (e) {
+                    // This proxy failed, try next
+                    continue;
+                }
+            }
+            throw new Error('All proxies failed');
+        }
+
+        // Fetch image as blob via proxy (for pre-caching)
+        async function fetchImageBlob() {
+            try {
+                const targetUrl = SOURCE_URL + '?t=' + Date.now() + '_' + Math.random();
+                currentImageBlob = await fetchWithProxyFallback(targetUrl);
+            } catch (e) {
+                console.warn('Proxy pre-cache failed:', e.message);
             }
         }
 
         // Fetch a single fresh image blob via proxy
         async function fetchFreshBlob() {
             const ts = Date.now() + '_' + Math.random();
-            const proxyUrl = PROXY_URL + encodeURIComponent(SOURCE_URL + '?t=' + ts);
-            const resp = await fetch(proxyUrl);
-            if (!resp.ok) throw new Error('Fetch failed: ' + resp.status);
-            return await resp.blob();
+            const targetUrl = SOURCE_URL + '?t=' + ts;
+            return await fetchWithProxyFallback(targetUrl);
         }
 
         // ---- REFRESH ----

@@ -25,6 +25,12 @@ A high-performance, cinematic personal portfolio with a hacker-terminal aestheti
 ### Typing Defense (`typing.html`)
 - Custom typing game module
 
+### CODEX_BREACH (`codex.html`)
+- **20 Escalating Protocols** — from simple length checks to complex palindromes and hex colors
+- **Interactive Neko Daemon** — Tamagotchi-style mascot that demands food or attacks the input
+- **FLIP Animations** — smooth reordering of active vs cleared security protocols
+- **Native CSS Custom Cursors** — zero-lag sci-fi crosshair pointer
+
 ### Projects Lab (`projects.html`)
 - Project showcase with terminal-style navigation
 
@@ -34,6 +40,7 @@ A high-performance, cinematic personal portfolio with a hacker-terminal aestheti
 portfolio-terminal/
 ├── index.html          # Main portfolio landing page
 ├── projects.html       # Projects showcase
+├── codex.html          # CODEX_BREACH passphrase game
 ├── silk.html           # Interactive Silk generative art canvas
 ├── typing.html         # Typing defense game
 ├── CNAME               # Custom domain config

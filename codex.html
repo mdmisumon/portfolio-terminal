@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>爪尺 米 | CODEX_BREACH</title>
+    <meta name="description"
+        content="CODEX_BREACH — A hacker-themed passphrase puzzle. Satisfy 15 escalating protocols to breach the mainframe.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&family=Noto+Serif+SC:wght@700;900&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { green: '#00FF41', dark: '#000000', red: '#FF003C', amber: '#FFB800', cyan: '#00FFFF' },
+                    fontFamily: { mono: ['"JetBrains Mono"', 'monospace'], cjk: ['"Noto Serif SC"', 'serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        html,
+        body {
+            background-color: #000;
+            color: #00FF41;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            z-index: 999;
+            background-size: 100% 4px;
+            pointer-events: none;
+            opacity: 0.08;
+        }
+
+        .bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+        }
+
+        /* ═══ INTERACTIVE CURSOR (hover state) ═══ */
+        .nav-item,
+        a,
+        button {
+            cursor: pointer;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .magnet-wrap {
+            display: inline-block;
+            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        /* ═══ INPUT ═══ */
+        #passphrase-input {
+            background: rgba(0, 20, 0, 0.8);
+            border: 2px solid rgba(0, 255, 65, 0.2);
+            color: #00FF41;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            caret-color: #00FF41;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            outline: none;
+            resize: none;
+        }
+
+        #passphrase-input:focus {
+            border-color: #00FF41;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.12), inset 0 0 20px rgba(0, 255, 65, 0.03);
+        }
+
+        #passphrase-input::placeholder {
+            color: rgba(0, 255, 65, 0.15);
+        }
+
+        #passphrase-input::selection {
+            background: rgba(0, 255, 65, 0.3);
+        }
+
+        /* ═══ RULE CARDS ═══ */
+        .rule-card {
+            background: rgba(0, 15, 0, 0.5);
+            border: 1px solid rgba(0, 255, 65, 0.08);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .rule-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            transition: background 0.3s;
+        }
+
+        .rule-card.active-threat::before {
+            background: #FF003C;
+            box-shadow: 0 0 8px #FF003C;
+        }
+
+        .rule-card.cleared::before {
+            background: #00FF41;
+        }
+
+        .rule-card.cleared {
+            opacity: 0.45;
+            background: rgba(0, 255, 65, 0.02);
+        }
+
+        .rule-card.cleared:hover {
+            opacity: 0.7;
+        }
+
+        .status-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            transition: all 0.3s;
+        }
+
+        .status-icon.pass {
+            color: #00FF41;
+            text-shadow: 0 0 8px #00FF41;
+        }
+
+        .status-icon.fail {
+            color: #FF003C;
+            text-shadow: 0 0 8px #FF003C;
+        }
+
+        @keyframes ruleReveal {
+            0% {
+                opacity: 0;
+                transform: translateX(-20px);
+                max-height: 0;
+                padding: 0;
+                margin: 0;
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+                max-height: 200px;
+            }
+        }
+
+        .rule-card.revealing {
+            animation: ruleReveal 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        .rule-card.hidden-rule {
+            display: none;
+        }
+
+        /* ═══ NEKO DAEMON ═══ */
+        .neko-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 500;
+            background: rgba(0, 10, 0, 0.95);
+            border: 1px solid rgba(0, 255, 65, 0.15);
+            border-radius: 12px;
+            padding: 16px;
+            width: 220px;
+            backdrop-filter: blur(10px);
+            transition: all 0.4s;
+            display: none;
+        }
+
+        .neko-widget.visible {
+            display: block;
+        }
+
+        .neko-widget.hungry {
+            border-color: #FFB800;
+            box-shadow: 0 0 25px rgba(255, 184, 0, 0.15);
+        }
+
+        .neko-widget.angry {
+            border-color: #FF003C;
+            box-shadow: 0 0 30px rgba(255, 0, 60, 0.2);
+            animation: nekoShake 0.1s infinite;
+        }
+
+        .neko-widget.happy {
+            border-color: #00FF41;
+        }
+
+        .neko-face {
+            font-size: 40px;
+            text-align: center;
+            transition: transform 0.3s;
+            line-height: 1;
+        }
+
+        .neko-widget.happy .neko-face {
+            transform: scale(1.1);
+        }
+
+        .neko-widget.angry .neko-face {
+            transform: scale(1.2);
+        }
+
+        .hunger-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .hunger-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s linear;
+        }
+
+        @keyframes nekoShake {
+            0% {
+                transform: translate(1px, 1px)
+            }
+
+            50% {
+                transform: translate(-2px, -1px)
+            }
+
+            100% {
+                transform: translate(1px, -1px)
+            }
+        }
+
+        /* ═══ PROGRESS ═══ */
+        .progress-fill {
+            transition: width 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+            background: linear-gradient(90deg, #00FF41, #00cc33);
+            box-shadow: 0 0 12px rgba(0, 255, 65, 0.3);
+        }
+
+        /* ═══ SCREEN EFFECTS ═══ */
+        @keyframes screenFlash {
+            0% {
+                background: rgba(255, 0, 60, 0.15);
+            }
+
+            100% {
+                background: transparent;
+            }
+        }
+
+        .screen-flash {
+            animation: screenFlash 0.5s forwards;
+        }
+
+        @keyframes screenShake {
+
+            0%,
+            100% {
+                transform: translate(0);
+            }
+
+            10% {
+                transform: translate(-4px, 2px);
+            }
+
+            30% {
+                transform: translate(4px, -2px);
+            }
+
+            50% {
+                transform: translate(-2px, 4px);
+            }
+
+            70% {
+                transform: translate(2px, -4px);
+            }
+
+            90% {
+                transform: translate(-2px, 1px);
+            }
+        }
+
+        .screen-shake {
+            animation: screenShake 0.4s;
+        }
+
+        /* ═══ VICTORY ═══ */
+        #victory-overlay {
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s;
+        }
+
+        #victory-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        @keyframes glitch {
+            0% {
+                transform: translate(0)
+            }
+
+            20% {
+                transform: translate(-3px, 3px)
+            }
+
+            40% {
+                transform: translate(-3px, -3px)
+            }
+
+            60% {
+                transform: translate(3px, 3px)
+            }
+
+            80% {
+                transform: translate(3px, -3px)
+            }
+
+            100% {
+                transform: translate(0)
+            }
+        }
+
+        .glitch-text {
+            animation: glitch 0.3s infinite;
+            text-shadow: 2px 0 #FF003C, -2px 0 #00bfff;
+        }
+
+        .stat-box {
+            background: rgba(0, 15, 0, 0.7);
+            border: 1px solid rgba(0, 255, 65, 0.1);
+        }
+
+        /* ═══ SECTIONS ═══ */
+        .section-label {
+            font-size: 9px;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            opacity: 0.35;
+            padding: 8px 0 6px 14px;
+        }
+
+        /* ═══ SCROLLBAR ═══ */
+        ::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.2);
+            border-radius: 2px;
+        }
+
+        /* ═══ PARTICLE CANVAS ═══ */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+
+<body class="font-mono">
+
+    <div class="bg-layer"></div>
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Screen Effect Overlay -->
+    <div id="screen-fx" class="fixed inset-0 pointer-events-none z-[800]"></div>
+
+    <!-- NAV -->
+    <nav
+        class="fixed w-full z-50 px-8 py-4 flex justify-between items-center bg-black/80 backdrop-blur-md border-b border-green/20">
+        <a href="index.html#home"
+            class="nav-item text-xl font-cjk font-bold tracking-tighter text-green glow-text uppercase hover:bg-green/10 transition-all">[
+            爪尺 米 ]</a>
+        <div class="hidden md:flex space-x-10 text-[10px] tracking-widest uppercase font-bold">
+            <div class="magnet-wrap"><a href="index.html#home"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">ROOT</a></div>
+            <div class="magnet-wrap"><a href="projects.html"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">LABS</a></div>
+            <div class="magnet-wrap"><a href="index.html#about"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">INFO</a></div>
+            <div class="magnet-wrap"><a href="index.html#connect"
+                    class="nav-item hover:bg-green hover:text-black px-2 transition-all">NODES</a></div>
+        </div>
+    </nav>
+
+    <!-- MAIN -->
+    <main id="game-main" class="pt-28 pb-20 px-4 md:px-8 max-w-5xl mx-auto min-h-screen">
+
+        <!-- Header -->
+        <div class="mb-8 border-l-2 border-green pl-6 md:pl-8">
+            <h1 class="text-3xl md:text-5xl font-bold mb-2 glow-text uppercase tracking-tight">CODEX_BREACH</h1>
+            <p class="text-green/50 text-xs md:text-sm">> OBJECTIVE: Construct a passphrase that satisfies all security
+                protocols.</p>
+            <p class="text-green/30 text-[10px] mt-1">> WARNING: The Neko Daemon watches. Keep it fed or face deletion.
+            </p>
+        </div>
+
+        <!-- Progress -->
+        <div class="mb-5 px-2">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] tracking-widest uppercase text-green/40">BREACH_PROGRESS</span>
+                <span id="progress-text" class="text-[10px] tracking-widest uppercase text-green/40">0 / 20</span>
+            </div>
+            <div class="w-full h-1.5 bg-green/10 rounded-full overflow-hidden">
+                <div id="progress-bar" class="progress-fill h-full rounded-full" style="width:0%"></div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-3 mb-5 px-2">
+            <div class="stat-box px-3 py-2 rounded text-center">
+                <div class="text-[8px] text-green/30 tracking-widest uppercase mb-0.5">LENGTH</div>
+                <div id="stat-length" class="text-base font-bold glow-text">0</div>
+            </div>
+            <div class="stat-box px-3 py-2 rounded text-center">
+                <div class="text-[8px] text-green/30 tracking-widest uppercase mb-0.5">DIGIT_SUM</div>
+                <div id="stat-digitsum" class="text-base font-bold glow-text">0</div>
+            </div>
+            <div class="stat-box px-3 py-2 rounded text-center">
+                <div class="text-[8px] text-green/30 tracking-widest uppercase mb-0.5">CLEARED</div>
+                <div id="stat-rules" class="text-base font-bold glow-text">0/20</div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="mb-6 px-2">
+            <div class="relative">
+                <div class="absolute top-3 left-4 text-green/20 text-xs select-none pointer-events-none">root@codex:~$
+                </div>
+                <textarea id="passphrase-input" class="w-full rounded-lg p-4 pl-[120px] md:pl-[130px] min-h-[70px]"
+                    placeholder="enter passphrase..." rows="2" spellcheck="false" autocomplete="off"
+                    autofocus></textarea>
+            </div>
+        </div>
+
+        <!-- ACTIVE THREATS -->
+        <div class="px-2 mb-2">
+            <div class="section-label text-red">▲ ACTIVE_THREATS</div>
+        </div>
+        <div id="active-rules" class="space-y-2 px-2 mb-6 min-h-[20px]"></div>
+
+        <!-- CLEARED -->
+        <div class="px-2 mb-2" id="cleared-section-header" style="display:none;">
+            <div class="section-label text-green/30">▼ PROTOCOLS_CLEARED</div>
+        </div>
+        <div id="cleared-rules" class="space-y-1.5 px-2 pb-20"></div>
+    </main>
+
+    <!-- NEKO DAEMON WIDGET -->
+    <div id="neko-widget" class="neko-widget">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-[9px] tracking-widest uppercase text-green/40">NEKO_DAEMON</span>
+            <span id="neko-status-text" class="text-[9px] tracking-widest uppercase">DORMANT</span>
+        </div>
+        <div id="neko-face" class="neko-face mb-2">😺</div>
+        <div id="neko-demand" class="text-center text-sm mb-2" style="display:none;">
+            FEED ME: <span id="neko-food" class="text-2xl"></span>
+        </div>
+        <div id="neko-timer-wrap" class="text-center text-[10px] text-amber mb-1" style="display:none;">
+            ⏱ <span id="neko-timer">20</span>s remaining
+        </div>
+        <div class="hunger-bar">
+            <div id="hunger-fill" class="hunger-fill" style="width:100%; background: #00FF41;"></div>
+        </div>
+    </div>
+
+    <!-- Victory -->
+    <div id="victory-overlay" class="fixed inset-0 z-[900] flex items-center justify-center bg-black/90">
+        <div class="text-center">
+            <div id="victory-title" class="text-5xl md:text-7xl font-bold mb-6 glow-text">BREACH_COMPLETE</div>
+            <p class="text-green/60 text-sm mb-2">> All 20 security protocols bypassed.</p>
+            <p class="text-green/60 text-sm mb-8">> Mainframe access granted.</p>
+            <div class="text-green/30 text-[10px] tracking-widest uppercase mb-3">ACCESS_TOKEN:</div>
+            <div id="access-token"
+                class="text-lg font-bold tracking-wider bg-green/10 border border-green/30 px-8 py-3 inline-block rounded mb-10">
+            </div>
+            <br>
+            <a href="projects.html"
+                class="nav-item border-2 border-green text-green px-12 py-3 text-[10px] font-bold hover:bg-green hover:text-black transition-all inline-block mt-4">RETURN_TO_LABS</a>
+        </div>
+    </div>
+
+    <footer class="text-center py-10 text-[9px] font-mono text-green/20 uppercase tracking-[1em]">
+        [SYSTEM_RECORDS_END] &copy; 2026 MD_SUMON
+    </footer>
+
+    <script>
+        // ═══════════════════════ MAGNETIC NAV EFFECT ═══════════════════════
+        window.addEventListener('mousemove', (e) => {
+            document.querySelectorAll('.magnet-wrap').forEach(m => {
+                const r = m.getBoundingClientRect();
+                const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+                m.style.transform = d < 100 ? `translate(${(e.clientX - (r.left + r.width / 2)) * 0.25}px,${(e.clientY - (r.top + r.height / 2)) * 0.25}px)` : 'translate(0,0)';
+            });
+        });
+
+        // ═══════════════════════ PARTICLES ═══════════════════════
+        const pc = document.getElementById('particle-canvas'), pctx = pc.getContext('2d');
+        let parts = [];
+        function rpc() { pc.width = innerWidth; pc.height = innerHeight; }
+        rpc(); window.addEventListener('resize', rpc);
+        class Pt {
+            constructor() { this.r(); }
+            r() { this.x = Math.random() * pc.width; this.y = Math.random() * pc.height; this.s = Math.random() * 1.2 + 0.3; this.sx = (Math.random() - 0.5) * 0.25; this.sy = (Math.random() - 0.5) * 0.25; this.o = Math.random() * 0.2 + 0.03; }
+            u() { this.x += this.sx; this.y += this.sy; if (this.x < 0 || this.x > pc.width || this.y < 0 || this.y > pc.height) this.r(); }
+            d() { pctx.beginPath(); pctx.arc(this.x, this.y, this.s, 0, Math.PI * 2); pctx.fillStyle = `rgba(0,255,65,${this.o})`; pctx.fill(); }
+        }
+        for (let i = 0; i < 50; i++) parts.push(new Pt());
+        (function anim() { pctx.clearRect(0, 0, pc.width, pc.height); parts.forEach(p => { p.u(); p.d(); }); requestAnimationFrame(anim); })();
+
+        // ═══════════════════════ GAME DATA ═══════════════════════
+
+        const hour24 = new Date().getHours().toString().padStart(2, '0');
+        const leftKeys = new Set('qwertasdfgzxcvbQWERTASDFGZXCVB'.split(''));
+        const foodEmojis = ['🍕', '🍔', '🍣', '🍩', '🌮', '🍎', '🍇', '🧁'];
+        let nekoFood = foodEmojis[Math.floor(Math.random() * foodEmojis.length)];
+        let nekoActive = false, nekoHungry = false, nekoTimer = 0, nekoInterval = null, nekoCountdown = null;
+        let hasWon = false;
+
+        // ─── Helper Functions ───
+        function isPrime(n) { if (n < 2) return false; if (n === 2 || n === 3) return true; if (n % 2 === 0 || n % 3 === 0) return false; for (let i = 5; i * i <= n; i += 6) if (n % i === 0 || (n % (i + 2)) === 0) return false; return true; }
+        function isPerfectSquare(n) { if (n < 0) return false; const s = Math.round(Math.sqrt(n)); return s * s === n; }
+        function hasPalindrome(v) {
+            const s = v.toLowerCase();
+            for (let i = 0; i < s.length - 2; i++) for (let l = 3; l <= Math.min(s.length - i, 8); l++) {
+                const sub = s.substr(i, l); if (/[a-z]/.test(sub) && sub === sub.split('').reverse().join('')) return true;
+            }
+            return false;
+        }
+        function hasLeftHandWord(v) {
+            const words = v.match(/[a-zA-Z]{3,}/g);
+            return words ? words.some(w => [...w].every(c => leftKeys.has(c))) : false;
+        }
+        function hasAlphaClimb(v) {
+            const s = v.toLowerCase();
+            for (let i = 0; i < s.length - 2; i++) {
+                const a = s.charCodeAt(i), b = s.charCodeAt(i + 1), c = s.charCodeAt(i + 2);
+                if (a >= 97 && a <= 120 && b === a + 1 && c === a + 2) return true;
+            }
+            return false;
+        }
+        function hasEchoSignal(v) {
+            const seen = new Set();
+            for (let i = 0; i < v.length - 1; i++) { const p = v.substring(i, i + 2); if (seen.has(p)) return true; seen.add(p); }
+            return false;
+        }
+        function containsEmoji(str) {
+            return /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/u.test(str);
+        }
+        function countDistinctEmojis(str) {
+            const emojis = str.match(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu);
+            return emojis ? new Set(emojis).size : 0;
+        }
+        function hasCountdown(v) {
+            for (let i = 0; i < v.length - 2; i++) {
+                const a = parseInt(v[i]), b = parseInt(v[i + 1]), c = parseInt(v[i + 2]);
+                if (!isNaN(a) && !isNaN(b) && !isNaN(c) && a === b + 1 && b === c + 1) return true;
+            }
+            return false;
+        }
+        const chemFormulas = ['H2O', 'CO2', 'NaCl', 'O2', 'N2', 'Fe2O3', 'H2SO4', 'NaOH', 'CH4', 'C2H6', 'NH3', 'HCl', 'CaCO3', 'Na2O', 'KOH', 'MgO', 'SO2', 'NO2'];
+
+        // ─── RULES ───
+        const rules = [
+            {
+                id: 1, title: 'PROTOCOL_01: SIGNAL_BOOST',
+                desc: 'Passphrase must be at least 16 characters long.',
+                check: v => [...v].length >= 16
+            },
+            {
+                id: 2, title: 'PROTOCOL_02: HEX_PAYLOAD',
+                desc: 'Must contain a valid hex color code (e.g., <span class="text-cyan">#FF0041</span>).',
+                check: v => /#[0-9A-Fa-f]{6}/.test(v)
+            },
+            {
+                id: 3, title: 'PROTOCOL_03: MIRROR_CRACK',
+                desc: 'Must contain a 3+ character palindrome (e.g., "aba", "noon", "level").',
+                check: v => hasPalindrome(v)
+            },
+            {
+                id: 4, title: 'PROTOCOL_04: MORSE_WHISPER',
+                desc: 'Must contain Morse code: <span class="text-cyan">...</span> (S) or <span class="text-cyan">---</span> (O).',
+                check: v => v.includes('...') || v.includes('---')
+            },
+            {
+                id: 5, title: 'PROTOCOL_05: ECHO_SIGNAL',
+                desc: 'Must contain the same 2-character sequence at least twice (e.g., "ab...ab").',
+                check: v => hasEchoSignal(v)
+            },
+            {
+                id: 6, title: 'PROTOCOL_06: SQUARE_SUM',
+                desc: 'The sum of all digits must be a perfect square (4, 9, 16, 25...).',
+                check: v => {
+                    const d = v.match(/\d/g);
+                    if (!d) return false;
+                    const sum = d.reduce((s, x) => s + parseInt(x), 0);
+                    return sum > 0 && isPerfectSquare(sum);
+                }
+            },
+            {
+                id: 7, title: 'PROTOCOL_07: LEFT_CIPHER',
+                desc: 'Must contain a 3+ letter word using only left-hand keyboard keys.<br><span class="text-green/40 text-[10px]">Hints: "set", "west", "fast", "brew", "czar", "stew", "cast"</span>',
+                check: v => hasLeftHandWord(v)
+            },
+            {
+                id: 8, title: 'PROTOCOL_08: ALPHA_CLIMB',
+                desc: 'Must contain 3 consecutive alphabetical letters in order (e.g., "abc", "stu", "xyz").',
+                check: v => hasAlphaClimb(v)
+            },
+            {
+                id: 9, title: 'PROTOCOL_09: TWIN_GATE',
+                desc: 'Must contain at least one pair of adjacent identical characters ("ll", "00", "##").',
+                check: v => { for (let i = 0; i < v.length - 1; i++) if (v[i] === v[i + 1]) return true; return false; }
+            },
+            {
+                id: 10, title: 'PROTOCOL_10: CHRONO_SYNC',
+                desc: `Must contain the current hour in 24h format: <span class="text-cyan">"${hour24}"</span>.`,
+                check: v => v.includes(hour24)
+            },
+            {
+                id: 11, title: 'PROTOCOL_11: BINARY_FLOOD',
+                desc: 'Must contain a 4+ digit binary sequence (only 0s and 1s, e.g., "1010", "0110").',
+                check: v => /[01]{4,}/.test(v)
+            },
+            {
+                id: 12, title: 'PROTOCOL_12: CODE_INJECT',
+                desc: 'Must contain a programming keyword: <span class="text-cyan">const, void, null, int, for, try, var, def</span>.',
+                check: v => {
+                    const kw = ['const', 'void', 'null', 'int', 'for', 'try', 'var', 'def'];
+                    const lower = v.toLowerCase();
+                    return kw.some(k => lower.includes(k));
+                }
+            },
+            {
+                id: 13, title: 'PROTOCOL_13: BOOKEND_LOCK',
+                desc: 'The first and last characters of your passphrase must be identical.',
+                check: v => { const a = [...v]; return a.length >= 2 && a[0] === a[a.length - 1]; }
+            },
+            {
+                id: 14, title: 'PROTOCOL_14: BRACKET_TRAP',
+                desc: 'Must contain a matched bracket pair: <span class="text-cyan">()</span>, <span class="text-cyan">[]</span>, or <span class="text-cyan">{}</span>.',
+                check: v => v.includes('()') || v.includes('[]') || v.includes('{}')
+            },
+            {
+                id: 15, title: 'PROTOCOL_15: COUNTDOWN_PULSE',
+                desc: 'Must contain 3+ consecutive descending digits (e.g., "321", "987", "654").',
+                check: v => hasCountdown(v)
+            },
+            {
+                id: 16, title: 'PROTOCOL_16: CHEMICAL_BOND',
+                desc: 'Must contain a chemical formula: <span class="text-cyan">H2O, CO2, NaCl, O2, NH3, CH4</span>, etc.',
+                check: v => chemFormulas.some(f => v.includes(f))
+            },
+            {
+                id: 17, title: 'PROTOCOL_17: SNAKE_BITE',
+                desc: 'Must contain an underscore with letters on both sides (snake_case format).',
+                check: v => /[a-zA-Z]_[a-zA-Z]/.test(v)
+            },
+            {
+                id: 18, title: 'PROTOCOL_18: EMOJI_SWARM',
+                desc: 'Must contain at least 2 different emoji characters. 🔥🎮',
+                check: v => countDistinctEmojis(v) >= 2
+            },
+            {
+                id: 19, title: 'PROTOCOL_19: 🐱 NEKO_DAEMON',
+                desc: 'Keep the Neko Daemon fed! Include the food emoji it demands in your passphrase.',
+                check: v => {
+                    if (!nekoActive) return true; // Not yet activated
+                    return v.includes(nekoFood);
+                },
+                isNeko: true
+            },
+            {
+                id: 20, title: 'PROTOCOL_20: PRIME_SEAL',
+                desc: 'The total character count of your passphrase must be a prime number.',
+                check: v => isPrime([...v].length)
+            }
+        ];
+
+        // ═══════════════════════ GAME STATE ═══════════════════════
+        const input = document.getElementById('passphrase-input');
+        const activeContainer = document.getElementById('active-rules');
+        const clearedContainer = document.getElementById('cleared-rules');
+        const clearedHeader = document.getElementById('cleared-section-header');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const statLength = document.getElementById('stat-length');
+        const statDigitSum = document.getElementById('stat-digitsum');
+        const statRules = document.getElementById('stat-rules');
+        const victoryOverlay = document.getElementById('victory-overlay');
+        const victoryTitle = document.getElementById('victory-title');
+        const accessToken = document.getElementById('access-token');
+        const screenFx = document.getElementById('screen-fx');
+        const gameMain = document.getElementById('game-main');
+
+        let highestRevealed = 1;
+        let ruleElements = {};
+        let ruleStates = {}; // 'active' or 'cleared'
+
+        // Create rule DOM elements
+        rules.forEach((rule, idx) => {
+            const div = document.createElement('div');
+            div.id = `rule-${rule.id}`;
+            div.dataset.index = idx;
+            div.className = `rule-card rounded-lg p-3 pl-5 flex items-start gap-3 ${idx === 0 ? 'revealing active-threat' : 'hidden-rule'}`;
+
+            div.innerHTML = `
+            <div class="status-icon fail mt-0.5">✗</div>
+            <div class="flex-1 min-w-0">
+                <div class="text-[9px] tracking-widest uppercase text-green/35 mb-0.5">${rule.title}</div>
+                <div class="text-xs text-green/60 leading-relaxed">${rule.desc}</div>
+            </div>
+        `;
+
+            activeContainer.appendChild(div);
+            ruleElements[rule.id] = div;
+            ruleStates[rule.id] = 'active';
+        });
+
+        // ═══════════════════════ NEKO DAEMON ═══════════════════════
+        const nekoWidget = document.getElementById('neko-widget');
+        const nekoFaceEl = document.getElementById('neko-face');
+        const nekoDemand = document.getElementById('neko-demand');
+        const nekoFoodEl = document.getElementById('neko-food');
+        const nekoTimerWrap = document.getElementById('neko-timer-wrap');
+        const nekoTimerEl = document.getElementById('neko-timer');
+        const nekoStatusText = document.getElementById('neko-status-text');
+        const hungerFill = document.getElementById('hunger-fill');
+
+        function activateNeko() {
+            if (nekoActive) return;
+            nekoActive = true;
+            nekoWidget.classList.add('visible');
+            nekoStatusText.textContent = 'SATISFIED';
+            nekoStatusText.style.color = '#00FF41';
+            nekoFaceEl.textContent = '😺';
+            nekoWidget.classList.add('happy');
+            hungerFill.style.width = '100%';
+            hungerFill.style.background = '#00FF41';
+
+            // Start hunger cycle
+            startHungerCycle();
+        }
+
+        function startHungerCycle() {
+            // After 25 seconds, neko gets hungry
+            clearInterval(nekoInterval);
+            clearInterval(nekoCountdown);
+            nekoHungry = false;
+
+            let hungerTime = 25;
+            let elapsed = 0;
+
+            nekoInterval = setInterval(() => {
+                elapsed++;
+                const pct = Math.max(0, ((hungerTime - elapsed) / hungerTime) * 100);
+                hungerFill.style.width = pct + '%';
+
+                if (elapsed >= hungerTime * 0.6) {
+                    hungerFill.style.background = '#FFB800';
+                }
+                if (elapsed >= hungerTime * 0.85) {
+                    hungerFill.style.background = '#FF003C';
+                }
+
+                if (elapsed >= hungerTime) {
+                    clearInterval(nekoInterval);
+                    makeNekoHungry();
+                }
+            }, 1000);
+        }
+
+        function makeNekoHungry() {
+            nekoHungry = true;
+            nekoFood = foodEmojis[Math.floor(Math.random() * foodEmojis.length)];
+            nekoFaceEl.textContent = '😾';
+            nekoWidget.classList.remove('happy');
+            nekoWidget.classList.add('hungry');
+            nekoStatusText.textContent = 'HUNGRY';
+            nekoStatusText.style.color = '#FFB800';
+            nekoDemand.style.display = 'block';
+            nekoFoodEl.textContent = nekoFood;
+            nekoTimerWrap.style.display = 'block';
+            hungerFill.style.width = '0%';
+            hungerFill.style.background = '#FF003C';
+
+            // Update the rule description
+            const nekoRuleEl = ruleElements[19];
+            if (nekoRuleEl) {
+                nekoRuleEl.querySelector('.text-xs').innerHTML =
+                    `Keep the Neko fed! Include <span class="text-2xl">${nekoFood}</span> in your passphrase. NOW!`;
+            }
+
+            // Countdown
+            nekoTimer = 20;
+            nekoTimerEl.textContent = nekoTimer;
+
+            nekoCountdown = setInterval(() => {
+                nekoTimer--;
+                nekoTimerEl.textContent = nekoTimer;
+
+                // Check if fed during countdown
+                if (input.value.includes(nekoFood)) {
+                    feedNeko();
+                    return;
+                }
+
+                if (nekoTimer <= 0) {
+                    clearInterval(nekoCountdown);
+                    nekoAttack();
+                }
+            }, 1000);
+
+            evaluate(); // Re-evaluate to mark neko rule
+        }
+
+        function feedNeko() {
+            clearInterval(nekoCountdown);
+            nekoHungry = false;
+            nekoFaceEl.textContent = '😻';
+            nekoWidget.classList.remove('hungry', 'angry');
+            nekoWidget.classList.add('happy');
+            nekoStatusText.textContent = 'SATISFIED';
+            nekoStatusText.style.color = '#00FF41';
+            nekoDemand.style.display = 'none';
+            nekoTimerWrap.style.display = 'none';
+            hungerFill.style.width = '100%';
+            hungerFill.style.background = '#00FF41';
+
+            // Restore rule description
+            const nekoRuleEl = ruleElements[19];
+            if (nekoRuleEl) {
+                nekoRuleEl.querySelector('.text-xs').innerHTML =
+                    `Neko is satisfied... for now. 😺`;
+            }
+
+            setTimeout(() => {
+                nekoFaceEl.textContent = '😺';
+                startHungerCycle();
+            }, 2000);
+
+            evaluate();
+        }
+
+        function nekoAttack() {
+            nekoHungry = false;
+            nekoFaceEl.textContent = '🙀';
+            nekoWidget.classList.remove('hungry');
+            nekoWidget.classList.add('angry');
+            nekoStatusText.textContent = 'ATTACKING!';
+            nekoStatusText.style.color = '#FF003C';
+
+            // Screen effects
+            screenFx.classList.add('screen-flash');
+            gameMain.classList.add('screen-shake');
+            setTimeout(() => { screenFx.classList.remove('screen-flash'); gameMain.classList.remove('screen-shake'); }, 500);
+
+            // Delete random characters!
+            const val = input.value;
+            if (val.length > 3) {
+                let chars = [...val];
+                const deleteCount = Math.min(4, Math.floor(chars.length * 0.15));
+                for (let i = 0; i < deleteCount; i++) {
+                    const idx = Math.floor(Math.random() * chars.length);
+                    chars.splice(idx, 1);
+                }
+                input.value = chars.join('');
+            }
+
+            nekoDemand.style.display = 'none';
+            nekoTimerWrap.style.display = 'none';
+
+            // Restore neko desc
+            const nekoRuleEl = ruleElements[19];
+            if (nekoRuleEl) {
+                nekoRuleEl.querySelector('.text-xs').innerHTML =
+                    `The Neko attacked! Characters deleted. It will get hungry again soon...`;
+            }
+
+            setTimeout(() => {
+                nekoFaceEl.textContent = '😾';
+                nekoWidget.classList.remove('angry');
+                nekoStatusText.textContent = 'RECOVERING';
+                nekoStatusText.style.color = '#FFB800';
+
+                setTimeout(() => {
+                    nekoFaceEl.textContent = '😺';
+                    nekoWidget.classList.add('happy');
+                    nekoStatusText.textContent = 'SATISFIED';
+                    nekoStatusText.style.color = '#00FF41';
+
+                    const nekoRuleEl2 = ruleElements[19];
+                    if (nekoRuleEl2) {
+                        nekoRuleEl2.querySelector('.text-xs').innerHTML =
+                            `Keep the Neko Daemon fed! Include the food emoji it demands in your passphrase.`;
+                    }
+
+                    startHungerCycle();
+                    evaluate();
+                }, 2000);
+            }, 1500);
+
+            evaluate();
+        }
+
+        // ═══════════════════════ EVALUATION ═══════════════════════
+
+        function evaluate() {
+            const val = input.value;
+            let satisfied = 0;
+            let allRevealedPass = true;
+
+            // Stats
+            statLength.textContent = [...val].length;
+            const digs = val.match(/\d/g);
+            statDigitSum.textContent = digs ? digs.reduce((s, d) => s + parseInt(d), 0) : 0;
+
+            for (let i = 0; i < rules.length; i++) {
+                const rule = rules[i];
+                const el = ruleElements[rule.id];
+                const icon = el.querySelector('.status-icon');
+
+                if (i >= highestRevealed) continue; // Not yet revealed
+
+                const pass = val.length > 0 && rule.check(val);
+
+                if (pass) {
+                    satisfied++;
+                    icon.textContent = '✓';
+                    icon.classList.add('pass');
+                    icon.classList.remove('fail');
+                    el.classList.remove('active-threat');
+                    el.classList.add('cleared');
+
+                    // Move to cleared section if needed
+                    if (ruleStates[rule.id] === 'active') {
+                        ruleStates[rule.id] = 'cleared';
+                        moveRuleToClearedSection(el);
+                    }
+                } else {
+                    allRevealedPass = false;
+                    icon.textContent = '✗';
+                    icon.classList.remove('pass');
+                    icon.classList.add('fail');
+                    el.classList.add('active-threat');
+                    el.classList.remove('cleared');
+
+                    // Move back to active section if needed
+                    if (ruleStates[rule.id] === 'cleared') {
+                        ruleStates[rule.id] = 'active';
+                        moveRuleToActiveSection(el);
+                    }
+                }
+            }
+
+            // Reveal next rule
+            if (allRevealedPass && val.length > 0 && highestRevealed < rules.length) {
+                highestRevealed++;
+                const nextRule = rules[highestRevealed - 1];
+                const nextEl = ruleElements[nextRule.id];
+                nextEl.classList.remove('hidden-rule');
+                nextEl.classList.add('revealing', 'active-threat');
+                ruleStates[nextRule.id] = 'active';
+
+                // Activate Neko if rule 14 is revealed
+                if (nextRule.isNeko) {
+                    activateNeko();
+                }
+
+                // Scroll new rule into view
+                setTimeout(() => {
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+
+                // Re-evaluate with new rule
+                setTimeout(() => evaluate(), 150);
+                return;
+            }
+
+            // Show/hide cleared section header
+            clearedHeader.style.display = clearedContainer.children.length > 0 ? 'block' : 'none';
+
+            // Progress
+            statRules.textContent = `${satisfied}/${rules.length}`;
+            progressBar.style.width = ((satisfied / rules.length) * 100) + '%';
+            progressText.textContent = `${satisfied} / ${rules.length}`;
+
+            // Victory
+            if (satisfied === rules.length && !hasWon) {
+                hasWon = true;
+                triggerVictory();
+            }
+        }
+
+        function moveRuleToClearedSection(el) {
+            // FLIP: record old position
+            const oldRect = el.getBoundingClientRect();
+            clearedContainer.appendChild(el);
+            const newRect = el.getBoundingClientRect();
+            const dy = oldRect.top - newRect.top;
+
+            if (Math.abs(dy) > 1) {
+                el.style.transform = `translateY(${dy}px)`;
+                el.style.transition = 'none';
+                requestAnimationFrame(() => {
+                    el.style.transition = 'transform 0.5s cubic-bezier(0.23,1,0.32,1), opacity 0.3s, background 0.3s';
+                    el.style.transform = 'translateY(0)';
+                });
+            }
+        }
+
+        function moveRuleToActiveSection(el) {
+            const oldRect = el.getBoundingClientRect();
+
+            // Insert in correct order among active rules
+            const activeChildren = [...activeContainer.children];
+            const myIdx = parseInt(el.dataset.index);
+            let inserted = false;
+            for (const child of activeChildren) {
+                if (parseInt(child.dataset.index) > myIdx) {
+                    activeContainer.insertBefore(el, child);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) activeContainer.appendChild(el);
+
+            const newRect = el.getBoundingClientRect();
+            const dy = oldRect.top - newRect.top;
+
+            if (Math.abs(dy) > 1) {
+                el.style.transform = `translateY(${dy}px)`;
+                el.style.transition = 'none';
+                requestAnimationFrame(() => {
+                    el.style.transition = 'transform 0.5s cubic-bezier(0.23,1,0.32,1), opacity 0.3s, background 0.3s';
+                    el.style.transform = 'translateY(0)';
+                });
+            }
+        }
+
+        // ═══════════════════════ VICTORY ═══════════════════════
+
+        function triggerVictory() {
+            clearInterval(nekoInterval);
+            clearInterval(nekoCountdown);
+
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let token = '';
+            for (let i = 0; i < 16; i++) { if (i > 0 && i % 4 === 0) token += '-'; token += chars[Math.floor(Math.random() * chars.length)]; }
+            accessToken.textContent = token;
+
+            setTimeout(() => {
+                victoryOverlay.classList.add('active');
+                victoryTitle.classList.add('glitch-text');
+                setTimeout(() => victoryTitle.classList.remove('glitch-text'), 2000);
+            }, 500);
+        }
+
+        // ═══════════════════════ EVENT LISTENERS ═══════════════════════
+
+        input.addEventListener('input', () => {
+            evaluate();
+            // Check if neko needs feeding during countdown
+            if (nekoHungry && input.value.includes(nekoFood)) {
+                feedNeko();
+            }
+        });
+
+        setTimeout(() => input.focus(), 300);
+    </script>
+</body>
+
+</html>
